@@ -1,0 +1,154 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: liquibase-pipeline
+spec:
+  entrypoint: liquibase-pipeline
+  serviceAccountName: executor-workflow-sa
+  volumeClaimTemplates:
+    - metadata:
+        name: workdir
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+  templates:
+  - name: liquibase-pipeline
+    inputs:
+      parameters:
+      - name: git-url
+      - name: git-revision
+      - name: git-ref-type
+      - name: jdbc-database-secret
+      - name: root-changelog-file
+      - name: environment
+    steps:
+    - - name: git-clone
+        retryStrategy:
+          limit: "3"
+          retryPolicy: "OnTransientError"
+        templateRef:
+          name: utilities-templates
+          template: git-clone-template
+        arguments:
+          parameters:
+          - name: git-url
+            value: "{{inputs.parameters.git-url}}"
+          - name: git-revision
+            value: "{{inputs.parameters.git-revision}}"
+
+    - - name: liquibase-validate
+        templateRef:
+          name: liquibase-utilities-templates
+          template: liquibase-validate
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: root-changelog-file
+            value: "{{inputs.parameters.root-changelog-file}}"
+
+    - - name: liquibase-status
+        templateRef:
+          name: liquibase-utilities-templates
+          template: liquibase-status
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: root-changelog-file
+            value: "{{inputs.parameters.root-changelog-file}}"
+
+    - - name: liquibase-snapshot
+        templateRef:
+          name: liquibase-utilities-templates
+          template: liquibase-snapshot
+        when: >-
+            ( {{steps.liquibase-status.outputs.parameters.status-message}} == no &&
+              {{inputs.parameters.environment}} != prod
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+
+      - name: liquibase-updatesql
+        templateRef:
+          name: liquibase-update-template
+          template: liquibase-update-base
+        when: >-
+            ( {{steps.liquibase-status.outputs.parameters.status-message}} == no &&
+              {{inputs.parameters.environment}} != prod
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: root-changelog-file
+            value: "{{inputs.parameters.root-changelog-file}}"
+          - name: update-command
+            value: "updateSQL"
+
+    - - name: liquibase-update-testing-rollback
+        templateRef:
+          name: liquibase-update-template
+          template: liquibase-update-base
+        when: >-
+            ( {{steps.liquibase-status.outputs.parameters.status-message}} == no &&
+              {{inputs.parameters.environment}} != prod
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: root-changelog-file
+            value: "{{inputs.parameters.root-changelog-file}}"
+          - name: update-command
+            value: "update-testing-rollback"
+
+      - name: liquibase-update
+        templateRef:
+          name: liquibase-update-template
+          template: liquibase-update-base
+        when: >-
+            ( {{steps.liquibase-status.outputs.parameters.status-message}} == no &&
+              {{inputs.parameters.environment}} == prod
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: root-changelog-file
+            value: "{{inputs.parameters.root-changelog-file}}"
+          - name: update-command
+            value: "update"
+
+    - - name: liquibase-diff
+        templateRef:
+          name: liquibase-utilities-templates
+          template: liquibase-diff
+        when: >-
+            ( {{steps.liquibase-status.outputs.parameters.status-message}} == no &&
+              {{inputs.parameters.environment}} != prod
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+
+      - name: liquibase-tag
+        templateRef:
+          name: liquibase-tag-templates
+          template: liquibase-tag
+        when: >-
+            ( {{steps.liquibase-status.outputs.parameters.status-message}} == no &&
+              {{inputs.parameters.environment}} == prod &&
+              {{inputs.parameters.git-ref-type}} == tag
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: git-revision
+            value: "{{inputs.parameters.git-revision}}"

@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: liquibase-pipeline-rollback
+spec:
+  entrypoint: liquibase-pipeline-rollback
+  serviceAccountName: executor-workflow-sa
+  volumeClaimTemplates:
+    - metadata:
+        name: workdir
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+  templates:
+  - name: liquibase-pipeline-rollback
+    inputs:
+      parameters:
+      - name: git-url
+      - name: git-revision
+      - name: liquibase-tag
+      - name: jdbc-database-secret
+      - name: root-changelog-file
+      - name: dry-run
+    steps:
+    - - name: git-clone
+        retryStrategy:
+          limit: "3"
+          retryPolicy: "OnTransientError"
+        templateRef:
+          name: utilities-templates
+          template: git-clone-template
+        arguments:
+          parameters:
+          - name: git-url
+            value: "{{inputs.parameters.git-url}}"
+          - name: git-revision
+            value: "{{inputs.parameters.git-revision}}"
+    - - name: check-tag
+        templateRef:
+          name: liquibase-tag-templates
+          template: liquibase-tag-exists
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: liquibase-tag
+            value: "{{inputs.parameters.liquibase-tag}}"
+    - - name: rollback-dry-run
+        templateRef:
+          name: liquibase-rollback-template
+          template: liquibase-rollback-base
+        when: >-
+            ( {{steps.check-tag.outputs.parameters.tag-exists-message}} == yes &&
+              {{inputs.parameters.dry-run}} == yes
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: root-changelog-file
+            value: "{{inputs.parameters.root-changelog-file}}"
+          - name: liquibase-tag
+            value: "{{inputs.parameters.liquibase-tag}}"
+          - name: rollback-command
+            value: "rollback-sql"
+    - - name: rollback
+        templateRef:
+          name: liquibase-rollback-template
+          template: liquibase-rollback-base
+        when: >-
+            ( {{steps.check-tag.outputs.parameters.tag-exists-message}} == yes &&
+              {{inputs.parameters.dry-run}} == no
+            )
+        arguments:
+          parameters:
+          - name: jdbc-database-secret
+            value: "{{inputs.parameters.jdbc-database-secret}}"
+          - name: root-changelog-file
+            value: "{{inputs.parameters.root-changelog-file}}"
+          - name: liquibase-tag
+            value: "{{inputs.parameters.liquibase-tag}}"
+          - name: rollback-command
+            value: "rollback"
