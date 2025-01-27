@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: liquibase-update-template
+spec:
+  templates:
+    - name: liquibase-update-base
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+          - name: root-changelog-file
+          - name: update-command
+      container:
+        image: liquibase:4.31
+        command: [/liquibase/liquibase]
+        args: [
+          "--defaultsFile=liquibase.properties",
+          "--changelog-file={{inputs.parameters.root-changelog-file}}",
+          "{{inputs.parameters.update-command}}"
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src

@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: liquibase-tag-templates
+spec:
+  templates:
+    - name: liquibase-tag
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+          - name: git-revision
+      container:
+        image: liquibase:4.31
+        command: [bash, -c]
+        args: [
+          "gitTag={{inputs.parameters.git-revision}};
+
+          /liquibase/liquibase \
+            --defaultsFile=liquibase.properties \
+            tag --tag=\"${gitTag##*/}\""
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src
+
+    - name: liquibase-tag-exists
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+          - name: liquibase-tag
+      outputs:
+        parameters:
+        - name: tag-exists-message
+          valueFrom:
+            path: /tmp/tag-exists-message.txt
+      container:
+        image: liquibase:4.31
+        command: [bash, -c]
+        args: [
+          "/liquibase/liquibase \
+            --defaultsFile=liquibase.properties \
+            tag-exists --tag={{inputs.parameters.liquibase-tag}} 2> /tmp/tag-exists.log;
+
+          cat /tmp/tag-exists.log;
+
+          if [[ \"$(cat /tmp/tag-exists.log)\" =~ \"already exists in\" ]]; then
+            echo -n \"yes\" > /tmp/tag-exists-message.txt;
+          else
+            echo -n \"no\" > /tmp/tag-exists-message.txt;
+          fi"
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src

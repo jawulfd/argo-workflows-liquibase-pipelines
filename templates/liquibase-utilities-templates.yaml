@@ -1,0 +1,161 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: liquibase-utilities-templates
+spec:
+  templates:
+    - name: liquibase-diff
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+      container:
+        image: liquibase:4.31
+        command: [bash, -c]
+        args: [
+          "/liquibase/liquibase \
+          --search-path=/src \
+          --defaultsFile=liquibase.properties \
+          --url=\"offline:${JDBC_DATABASE_TYPE}?snapshot=/snapshot.json\" \
+          diff"
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_REFERENCE_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_REFERENCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_REFERENCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        - name: JDBC_DATABASE_TYPE
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-type
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src
+
+    - name: liquibase-snapshot
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+      container:
+        image: liquibase:4.31
+        command: [/liquibase/liquibase]
+        args: [
+          "--defaultsFile=liquibase.properties",
+          "--output-file=/src/snapshot.json",
+          "snapshot",
+          "--snapshotFormat=json"
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src
+
+    - name: liquibase-status
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+          - name: root-changelog-file
+      outputs:
+        parameters:
+        - name: status-message
+          valueFrom:
+            path: /tmp/status-message.txt
+      container:
+        image: liquibase:4.31
+        command: [bash, -c]
+        args: [
+           "/liquibase/liquibase \
+          --defaultsFile=liquibase.properties \
+          --changelog-file={{inputs.parameters.root-changelog-file}} \
+          status --verbose > /tmp/status.log;
+
+          cat /tmp/status.log;
+  
+          if [[ \"$(cat /tmp/status.log)\" =~ \"is up to date\" ]]; then
+            echo -n \"yes\" > /tmp/status-message.txt;
+          else
+            echo -n \"no\" > /tmp/status-message.txt;
+          fi"
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src
+
+    - name: liquibase-validate
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+          - name: root-changelog-file
+      container:
+        image: liquibase:4.31
+        command: [/liquibase/liquibase]
+        args: [
+            "--defaultsFile=liquibase.properties",
+            "--changelog-file={{inputs.parameters.root-changelog-file}}",
+            "validate"
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src

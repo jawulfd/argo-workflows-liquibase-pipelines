@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: utilities-templates
+spec:
+  templates:
+    - name: git-clone-template
+      inputs:
+        parameters:
+          - name: git-url
+          - name: git-revision
+        artifacts:
+        - name: code
+          path: /src/liquibase
+          git:
+            repo: "{{inputs.parameters.git-url}}"
+            revision: "{{inputs.parameters.git-revision}}"
+      container:
+        image: alpine/git:v2.47.1
+        command: [sh, -c]
+        args: ["git status"]
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src

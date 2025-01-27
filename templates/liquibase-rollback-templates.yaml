@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: liquibase-rollback-template
+spec:
+  templates:
+    - name: liquibase-rollback-base
+      inputs:
+        parameters:
+          - name: jdbc-database-secret
+          - name: root-changelog-file
+          - name: liquibase-tag
+          - name: rollback-command
+      container:
+        image: liquibase:4.31
+        command: [/liquibase/liquibase]
+        args: [
+          "--defaultsFile=liquibase.properties",
+          "--changelog-file={{inputs.parameters.root-changelog-file}}",
+          "{{inputs.parameters.rollback-command}}",
+          "--tag={{inputs.parameters.liquibase-tag}}"
+        ]
+        env:
+        - name: LIQUIBASE_COMMAND_URL
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-url
+        - name: LIQUIBASE_COMMAND_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-user
+        - name: LIQUIBASE_COMMAND_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{inputs.parameters.jdbc-database-secret}}"
+              key: database-pass
+        workingDir: /src/liquibase
+        volumeMounts:
+        - name: workdir
+          mountPath: /src
