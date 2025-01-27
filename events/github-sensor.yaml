@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: github-sensor
+spec:
+  template:
+    serviceAccountName: operate-workflow-sa
+  dependencies:
+    - name: test-dep
+      eventSourceName: github
+      eventName: liquibase-testing
+      filters:
+        data:
+          - path: headers.X-Github-Event
+            type: string
+            value:
+              - push
+  triggers:
+    - template:
+        name: github-workflow-trigger
+        k8s:
+          operation: create
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                name: liquibase-pipeline-github-
+              spec:
+                entrypoint: liquibase-pipeline
+                arguments:
+                  parameters:
+                    - name: git-url
+                    - name: git-revision
+                    - name: git-ref-type
+                      value: branch
+                    - name: jdbc-database-secret
+                      value: sailor-seiya-config
+                    - name: root-changelog-file
+                      value: example-changelog.sql
+                    - name: environment
+                      value: dev
+                workflowTemplateRef:
+                  name: liquibase-pipeline
+          parameters:
+            - src:
+                dependencyName: test-dep
+                dataKey: body.repository.clone_url
+              dest: spec.arguments.parameters.0.value
+            - src:
+                dependencyName: test-dep
+                dataKey: body.head_commit.id
+              dest: spec.arguments.parameters.1.value
+            - src:
+                dependencyName: test-dep
+                dataTemplate: "{{ .Input.body.head_commit.id | substr 0 7 }}"
+              dest: metadata.name
+              operation: append
+      retryStrategy:
+        steps: 3

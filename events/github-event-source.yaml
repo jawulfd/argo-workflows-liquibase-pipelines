@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: github
+spec:
+  service:
+    ports:
+      - name: liquibase-testing
+        port: 12000
+        targetPort: 12000
+  github:    
+    liquibase-testing:
+      owner: "jawulfd"
+      repository: "liquibase-testing"
+      webhook:
+        endpoint: "/push"
+        port: "12000"
+        method: "POST"
+      events:
+        - "*"
+      webhookSecret:
+        name: github-secret
+        key: secretToken
+      insecure: false
+      active: true
+      contentType: "json"
