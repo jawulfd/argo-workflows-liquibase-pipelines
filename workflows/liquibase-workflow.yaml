@@ -88,7 +88,7 @@ spec:
           - name: root-changelog-file
             value: "{{inputs.parameters.root-changelog-file}}"
           - name: update-command
-            value: "updateSQL"
+            value: "update-sql"
 
     - - name: liquibase-update-testing-rollback
         templateRef:
