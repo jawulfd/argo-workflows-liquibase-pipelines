@@ -10,8 +10,8 @@ spec:
         targetPort: 12000
   github:    
     liquibase-testing:
-      owner: "jawulfd"
-      repository: "liquibase-testing"
+      owner: "<github-owner>"
+      repository: "<github-repository-name>"
       webhook:
         endpoint: "/push"
         port: "12000"

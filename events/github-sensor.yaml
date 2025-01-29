@@ -35,11 +35,11 @@ spec:
                     - name: git-ref-type
                       value: branch
                     - name: jdbc-database-secret
-                      value: sailor-seiya-config
+                      value: <jdbc-database-secret>
                     - name: root-changelog-file
-                      value: example-changelog.sql
+                      value: <root-changelog-file>
                     - name: environment
-                      value: dev
+                      value: <environment>
                 workflowTemplateRef:
                   name: liquibase-pipeline
           parameters:
