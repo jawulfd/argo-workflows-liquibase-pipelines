@@ -53,7 +53,7 @@ spec:
           template: liquibase-rollback-base
         when: >-
             ( {{steps.check-tag.outputs.parameters.tag-exists-message}} == yes &&
-              {{inputs.parameters.dry-run}} == yes
+              {{inputs.parameters.dry-run}} != no
             )
         arguments:
           parameters:
