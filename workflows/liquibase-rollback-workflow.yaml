@@ -65,7 +65,7 @@ spec:
             value: "{{inputs.parameters.liquibase-tag}}"
           - name: rollback-command
             value: "rollback-sql"
-    - - name: rollback
+      - name: rollback
         templateRef:
           name: liquibase-rollback-template
           template: liquibase-rollback-base
