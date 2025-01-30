@@ -27,7 +27,7 @@ implementation process can be found
 
 ### Argo Workflows
 
-In the folder [resources](resources)[templates](templates), the different workflow templates definitions for liquibase commands
+In the folder [templates](templates), the different workflow templates definitions for liquibase commands
 can be found and the workflows which reference previous templates are located in [workflows](workflows) folder
 
 ### Argo Events Configuration
